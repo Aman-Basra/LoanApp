@@ -3,10 +3,24 @@ const sqlite3 = require('sqlite3').verbose();
 const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
+const os = require('os');
 
 const app = express();
 const port = process.env.PORT || 3000;
-const dbPath = path.join(__dirname, '..', 'devices.db');
+
+// Ensure data directory exists with proper permissions
+const dataDir = path.join(__dirname, '..', 'data');
+if (!fs.existsSync(dataDir)) {
+    try {
+        fs.mkdirSync(dataDir, { recursive: true, mode: 0o755 });
+        console.log('Created data directory:', dataDir);
+    } catch (err) {
+        console.error('Error creating data directory:', err);
+        process.exit(1);
+    }
+}
+
+const dbPath = path.join(dataDir, 'devices.db');
 
 // Middleware
 app.use(cors());
@@ -16,15 +30,38 @@ app.use(express.static(path.join(__dirname, '..')));
 // Database setup
 function initializeDatabase() {
     return new Promise((resolve, reject) => {
+        // Remove existing database if it exists
+        if (fs.existsSync(dbPath)) {
+            try {
+                fs.unlinkSync(dbPath);
+                console.log('Removed existing database file');
+            } catch (err) {
+                console.error('Error removing existing database:', err);
+                reject(err);
+                return;
+            }
+        }
+
         const db = new sqlite3.Database(dbPath, (err) => {
             if (err) {
                 console.error('Error opening database:', err);
                 reject(err);
                 return;
             }
-            console.log('Connected to SQLite database');
+            console.log('Connected to SQLite database at:', dbPath);
+
+            // Set database configuration
+            db.configure('busyTimeout', 5000);
+            db.configure('journalMode', 'WAL');
 
             db.serialize(() => {
+                // Enable foreign keys
+                db.run('PRAGMA foreign_keys = ON', (err) => {
+                    if (err) {
+                        console.error('Error enabling foreign keys:', err);
+                    }
+                });
+
                 // Devices table
                 db.run(`CREATE TABLE IF NOT EXISTS devices (
                     id TEXT PRIMARY KEY,
@@ -94,71 +131,50 @@ function initializeDatabase() {
                     console.log('Wards table created or already exists');
                 });
 
-                // Add sample data if tables are empty
-                db.get("SELECT COUNT(*) as count FROM devices", (err, row) => {
-                    if (err) {
-                        console.error('Error checking devices:', err);
-                        return;
-                    }
-                    if (row.count === 0) {
-                        console.log('Adding sample devices...');
-                        const sampleDevice = {
-                            id: Date.now().toString(36) + Math.random().toString(36).substr(2),
-                            name: 'MacBook Pro 16"',
-                            serialNumber: 'FVFXC123456',
-                            assetId: 'IT-1001',
-                            status: 'available',
-                            dateAdded: new Date().toISOString()
-                        };
-                        db.run(`INSERT INTO devices (id, name, serialNumber, assetId, status, dateAdded)
-                            VALUES (?, ?, ?, ?, ?, ?)`,
-                            [sampleDevice.id, sampleDevice.name, sampleDevice.serialNumber, 
-                             sampleDevice.assetId, sampleDevice.status, sampleDevice.dateAdded],
-                            (err) => {
-                                if (err) {
-                                    console.error('Error adding sample device:', err);
-                                } else {
-                                    console.log('Sample device added successfully');
-                                }
-                            });
-                    }
-                });
+                // Add sample data
+                console.log('Adding sample data...');
+                
+                // Sample device
+                const sampleDevice = {
+                    id: Date.now().toString(36) + Math.random().toString(36).substr(2),
+                    name: 'MacBook Pro 16"',
+                    serialNumber: 'FVFXC123456',
+                    assetId: 'IT-1001',
+                    status: 'available',
+                    dateAdded: new Date().toISOString()
+                };
 
-                db.get("SELECT COUNT(*) as count FROM staff", (err, row) => {
-                    if (err) {
-                        console.error('Error checking staff:', err);
-                        return;
-                    }
-                    if (row.count === 0) {
-                        console.log('Adding sample staff...');
-                        const sampleStaff = [
-                            [Date.now().toString(36) + Math.random().toString(36).substr(2), 'John Smith', 'Teacher'],
-                            [Date.now().toString(36) + Math.random().toString(36).substr(2), 'Jane Doe', 'Nurse']
-                        ];
-                        const stmt = db.prepare('INSERT INTO staff (id, name, role) VALUES (?, ?, ?)');
-                        sampleStaff.forEach(staff => stmt.run(staff));
-                        stmt.finalize();
-                        console.log('Sample staff added successfully');
-                    }
-                });
+                db.run(`INSERT INTO devices (id, name, serialNumber, assetId, status, dateAdded)
+                    VALUES (?, ?, ?, ?, ?, ?)`,
+                    [sampleDevice.id, sampleDevice.name, sampleDevice.serialNumber, 
+                     sampleDevice.assetId, sampleDevice.status, sampleDevice.dateAdded],
+                    (err) => {
+                        if (err) {
+                            console.error('Error adding sample device:', err);
+                        } else {
+                            console.log('Sample device added successfully');
+                        }
+                    });
 
-                db.get("SELECT COUNT(*) as count FROM wards", (err, row) => {
-                    if (err) {
-                        console.error('Error checking wards:', err);
-                        return;
-                    }
-                    if (row.count === 0) {
-                        console.log('Adding sample wards...');
-                        const sampleWards = [
-                            [Date.now().toString(36) + Math.random().toString(36).substr(2), 'Ward A'],
-                            [Date.now().toString(36) + Math.random().toString(36).substr(2), 'Ward B']
-                        ];
-                        const stmt = db.prepare('INSERT INTO wards (id, name) VALUES (?, ?)');
-                        sampleWards.forEach(ward => stmt.run(ward));
-                        stmt.finalize();
-                        console.log('Sample wards added successfully');
-                    }
-                });
+                // Sample staff
+                const sampleStaff = [
+                    [Date.now().toString(36) + Math.random().toString(36).substr(2), 'John Smith', 'Teacher'],
+                    [Date.now().toString(36) + Math.random().toString(36).substr(2), 'Jane Doe', 'Nurse']
+                ];
+                const staffStmt = db.prepare('INSERT INTO staff (id, name, role) VALUES (?, ?, ?)');
+                sampleStaff.forEach(staff => staffStmt.run(staff));
+                staffStmt.finalize();
+                console.log('Sample staff added successfully');
+
+                // Sample wards
+                const sampleWards = [
+                    [Date.now().toString(36) + Math.random().toString(36).substr(2), 'Ward A'],
+                    [Date.now().toString(36) + Math.random().toString(36).substr(2), 'Ward B']
+                ];
+                const wardStmt = db.prepare('INSERT INTO wards (id, name) VALUES (?, ?)');
+                sampleWards.forEach(ward => wardStmt.run(ward));
+                wardStmt.finalize();
+                console.log('Sample wards added successfully');
 
                 resolve(db);
             });
@@ -171,6 +187,11 @@ initializeDatabase()
     .then(db => {
         // Make db available globally
         app.locals.db = db;
+
+        // Add error handler for database
+        db.on('error', (err) => {
+            console.error('Database error:', err);
+        });
 
         // API Endpoints
         // Get all devices
@@ -327,8 +348,25 @@ initializeDatabase()
         });
 
         // Start server
-        app.listen(port, () => {
+        const server = app.listen(port, () => {
             console.log(`Server running at http://localhost:${port}`);
+            console.log(`Database initialized at ${dbPath}`);
+            console.log(`Platform: ${os.platform()}`);
+            console.log(`Architecture: ${os.arch()}`);
+        });
+
+        // Handle server shutdown
+        process.on('SIGTERM', () => {
+            console.log('SIGTERM received. Closing server and database...');
+            server.close(() => {
+                db.close((err) => {
+                    if (err) {
+                        console.error('Error closing database:', err);
+                    }
+                    console.log('Server and database closed');
+                    process.exit(0);
+                });
+            });
         });
     })
     .catch(err => {
