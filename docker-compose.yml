@@ -1,0 +1,22 @@
+version: '3.8'
+
+services:
+  app:
+    build: 
+      context: .
+      platform: linux/amd64
+    image: yourusername/device-management-system:latest
+    ports:
+      - "443:3000"
+    volumes:
+      - ./devices.db:/usr/src/app/devices.db
+    environment:
+      - NODE_ENV=production
+      - NODE_OPTIONS=--max-old-space-size=512
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/devices"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s 

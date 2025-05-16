@@ -283,6 +283,60 @@
             font-size: 12px;
             color: #999;
         }
+        
+        .management-section {
+            background-color: white;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 30px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+        
+        .management-section h3 {
+            margin-bottom: 20px;
+            color: var(--dark);
+        }
+        
+        .list-container {
+            margin-top: 20px;
+        }
+        
+        .list-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .list-item:last-child {
+            border-bottom: none;
+        }
+        
+        .item-details {
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .item-details .role {
+            color: #666;
+            font-size: 14px;
+            margin-top: 5px;
+        }
+        
+        select {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            background-color: white;
+        }
+        
+        select:focus {
+            outline: none;
+            border-color: var(--primary);
+        }
     </style>
 </head>
 <body>
@@ -297,6 +351,7 @@
             <button class="tab-button active" data-tab="checkoutPage">Check Out</button>
             <button class="tab-button" data-tab="checkinPage">Check In</button>
             <button class="tab-button" data-tab="manageDevicesPage">Manage Devices</button>
+            <button class="tab-button" data-tab="manageStaffPage">Manage Staff</button>
         </div>
         
         <div id="checkoutPage" class="page active">
@@ -320,6 +375,24 @@
                 <!-- All devices will be populated here -->
             </div>
         </div>
+        
+        <div id="manageStaffPage" class="page">
+            <h2>Manage Staff and Wards</h2>
+            <div class="management-section">
+                <h3>Staff Members</h3>
+                <button id="showAddStaffModal" class="btn-primary">Add New Staff Member</button>
+                <div id="staffList" class="list-container">
+                    <!-- Staff list will be populated here -->
+                </div>
+            </div>
+            <div class="management-section">
+                <h3>Wards</h3>
+                <button id="showAddWardModal" class="btn-primary">Add New Ward</button>
+                <div id="wardList" class="list-container">
+                    <!-- Ward list will be populated here -->
+                </div>
+            </div>
+        </div>
     </div>
     
     <div id="checkoutModal" class="modal">
@@ -330,8 +403,20 @@
             <div class="modal-body">
                 <div id="checkoutDeviceDetails"></div>
                 <div class="form-group">
-                    <label for="assignedUser">User Name:</label>
-                    <input type="text" id="assignedUser" placeholder="Enter the name of the person">
+                    <label for="pupilName">Pupil Name:</label>
+                    <input type="text" id="pupilName" placeholder="Enter pupil's name">
+                </div>
+                <div class="form-group">
+                    <label for="staffMember">Staff Member:</label>
+                    <select id="staffMember" required>
+                        <option value="">Select Staff Member</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="ward">Ward:</label>
+                    <select id="ward" required>
+                        <option value="">Select Ward</option>
+                    </select>
                 </div>
                 <div class="form-group">
                     <label for="checkoutNotes">Notes (Optional):</label>
@@ -425,77 +510,258 @@
         </div>
     </div>
     
+    <div id="addStaffModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Add New Staff Member</h2>
+            </div>
+            <div class="modal-body">
+                <form id="addStaffForm">
+                    <div class="form-group">
+                        <label for="staffName">Name:</label>
+                        <input type="text" id="staffName" required placeholder="Enter staff member's name">
+                    </div>
+                    <div class="form-group">
+                        <label for="staffRole">Role:</label>
+                        <input type="text" id="staffRole" required placeholder="Enter staff member's role">
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button id="cancelAddStaff" class="btn-cancel">Cancel</button>
+                <button id="confirmAddStaff" class="btn-secondary">Add Staff Member</button>
+            </div>
+        </div>
+    </div>
+    
+    <div id="addWardModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Add New Ward</h2>
+            </div>
+            <div class="modal-body">
+                <form id="addWardForm">
+                    <div class="form-group">
+                        <label for="wardName">Ward Name:</label>
+                        <input type="text" id="wardName" required placeholder="Enter ward name">
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button id="cancelAddWard" class="btn-cancel">Cancel</button>
+                <button id="confirmAddWard" class="btn-secondary">Add Ward</button>
+            </div>
+        </div>
+    </div>
+    
     <div class="add-device-button" id="quickAddDeviceButton">+</div>
 
     <script>
         // Data model
         let devices = [];
-        const storageKey = 'deviceManagementSystem';
+        let staff = [];
+        let wards = [];
+        const API_URL = 'http://localhost:3000/api';
         
-        // Load data from localStorage
-        function loadData() {
-            const savedData = localStorage.getItem(storageKey);
-            if (savedData) {
-                devices = JSON.parse(savedData);
-            } else {
-                // Sample data for first time users
-                devices = [
-                    {
-                        id: generateId(),
-                        name: 'MacBook Pro 16"',
-                        serialNumber: 'FVFXC123456',
-                        assetId: 'IT-1001',
-                        status: 'available',
-                        history: [],
-                        dateAdded: new Date().toISOString()
-                    },
-                    {
-                        id: generateId(),
-                        name: 'iPad Pro 12.9"',
-                        serialNumber: 'IPDF987654',
-                        assetId: 'IT-1002',
-                        status: 'available',
-                        history: [],
-                        dateAdded: new Date().toISOString()
-                    },
-                    {
-                        id: generateId(),
-                        name: 'iPhone 15 Pro',
-                        serialNumber: 'IPHX456789',
-                        assetId: 'IT-1003',
-                        status: 'checked-out',
-                        assignedTo: 'John Smith',
-                        checkoutTime: new Date(Date.now() - 86400000).toISOString(),
-                        checkoutNotes: 'For project demo',
-                        history: [
-                            {
-                                type: 'checkout',
-                                timestamp: new Date(Date.now() - 86400000).toISOString(),
-                                user: 'John Smith',
-                                notes: 'For project demo'
-                            }
-                        ],
-                        dateAdded: new Date(Date.now() - 7 * 86400000).toISOString()
-                    }
-                ];
-                saveData();
+        // Load data from API
+        async function loadData() {
+            try {
+                // Load devices
+                const devicesResponse = await fetch(`${API_URL}/devices`);
+                devices = await devicesResponse.json();
+                
+                // Load staff
+                const staffResponse = await fetch(`${API_URL}/staff`);
+                staff = await staffResponse.json();
+                
+                // Load wards
+                const wardsResponse = await fetch(`${API_URL}/wards`);
+                wards = await wardsResponse.json();
+                
+                // Render the UI
+                renderDevices();
+                renderStaffList();
+                renderWardList();
+                
+            } catch (error) {
+                console.error('Error loading data:', error);
             }
         }
         
-        // Save data to localStorage
-        function saveData() {
-            localStorage.setItem(storageKey, JSON.stringify(devices));
+        // Add a new device
+        async function addDevice(name, serialNumber, assetId) {
+            try {
+                const response = await fetch(`${API_URL}/devices`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ name, serialNumber, assetId })
+                });
+                
+                const newDevice = await response.json();
+                devices.push(newDevice);
+                renderDevices();
+            } catch (error) {
+                console.error('Error adding device:', error);
+            }
         }
         
-        // Generate unique ID
-        function generateId() {
-            return Date.now().toString(36) + Math.random().toString(36).substr(2);
+        // Delete a device
+        async function deleteDevice(deviceId) {
+            try {
+                await fetch(`${API_URL}/devices/${deviceId}`, {
+                    method: 'DELETE'
+                });
+                
+                devices = devices.filter(d => d.id !== deviceId);
+                renderDevices();
+            } catch (error) {
+                console.error('Error deleting device:', error);
+            }
         }
         
-        // Format date for display
-        function formatDate(dateString) {
-            const date = new Date(dateString);
-            return date.toLocaleDateString() + ' ' + date.toLocaleTimeString();
+        // Add a new staff member
+        async function addStaffMember(name, role) {
+            try {
+                const response = await fetch(`${API_URL}/staff`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ name, role })
+                });
+                
+                const newStaff = await response.json();
+                staff.push(newStaff);
+                renderStaffList();
+            } catch (error) {
+                console.error('Error adding staff member:', error);
+            }
+        }
+        
+        // Delete a staff member
+        async function deleteStaffMember(staffId) {
+            try {
+                await fetch(`${API_URL}/staff/${staffId}`, {
+                    method: 'DELETE'
+                });
+                
+                staff = staff.filter(s => s.id !== staffId);
+                renderStaffList();
+            } catch (error) {
+                console.error('Error deleting staff member:', error);
+            }
+        }
+        
+        // Add a new ward
+        async function addWard(name) {
+            try {
+                const response = await fetch(`${API_URL}/wards`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ name })
+                });
+                
+                const newWard = await response.json();
+                wards.push(newWard);
+                renderWardList();
+            } catch (error) {
+                console.error('Error adding ward:', error);
+            }
+        }
+        
+        // Delete a ward
+        async function deleteWard(wardId) {
+            try {
+                await fetch(`${API_URL}/wards/${wardId}`, {
+                    method: 'DELETE'
+                });
+                
+                wards = wards.filter(w => w.id !== wardId);
+                renderWardList();
+            } catch (error) {
+                console.error('Error deleting ward:', error);
+            }
+        }
+        
+        // Check out a device
+        async function checkoutDevice(deviceId, pupilName, staffId, wardId, notes) {
+            try {
+                const staffMember = staff.find(s => s.id === staffId);
+                const ward = wards.find(w => w.id === wardId);
+                
+                const response = await fetch(`${API_URL}/devices/${deviceId}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        status: 'checked-out',
+                        assignedTo: pupilName,
+                        staffMember: staffMember ? staffMember.name : '',
+                        ward: ward ? ward.name : '',
+                        checkoutNotes: notes
+                    })
+                });
+                
+                if (response.ok) {
+                    const deviceIndex = devices.findIndex(d => d.id === deviceId);
+                    if (deviceIndex !== -1) {
+                        devices[deviceIndex] = {
+                            ...devices[deviceIndex],
+                            status: 'checked-out',
+                            assignedTo: pupilName,
+                            staffMember: staffMember ? staffMember.name : '',
+                            ward: ward ? ward.name : '',
+                            checkoutTime: new Date().toISOString(),
+                            checkoutNotes: notes
+                        };
+                        renderDevices();
+                    }
+                }
+            } catch (error) {
+                console.error('Error checking out device:', error);
+            }
+        }
+        
+        // Check in a device
+        async function checkinDevice(deviceId, notes) {
+            try {
+                const response = await fetch(`${API_URL}/devices/${deviceId}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        status: 'available',
+                        assignedTo: null,
+                        staffMember: null,
+                        ward: null,
+                        checkoutNotes: notes
+                    })
+                });
+                
+                if (response.ok) {
+                    const deviceIndex = devices.findIndex(d => d.id === deviceId);
+                    if (deviceIndex !== -1) {
+                        devices[deviceIndex] = {
+                            ...devices[deviceIndex],
+                            status: 'available',
+                            assignedTo: null,
+                            staffMember: null,
+                            ward: null,
+                            checkoutTime: null,
+                            checkoutNotes: null
+                        };
+                        renderDevices();
+                    }
+                }
+            } catch (error) {
+                console.error('Error checking in device:', error);
+            }
         }
         
         // Tab switching
@@ -629,88 +895,6 @@
             return card;
         }
         
-        // Check out a device
-        function checkoutDevice(deviceId, userName, notes) {
-            const deviceIndex = devices.findIndex(d => d.id === deviceId);
-            if (deviceIndex !== -1) {
-                const device = devices[deviceIndex];
-                const timestamp = new Date().toISOString();
-                
-                // Update device status
-                device.status = 'checked-out';
-                device.assignedTo = userName;
-                device.checkoutTime = timestamp;
-                device.checkoutNotes = notes || '';
-                
-                // Add to history
-                device.history.push({
-                    type: 'checkout',
-                    timestamp: timestamp,
-                    user: userName,
-                    notes: notes || ''
-                });
-                
-                // Save changes
-                saveData();
-                renderDevices();
-            }
-        }
-        
-        // Check in a device
-        function checkinDevice(deviceId, notes) {
-            const deviceIndex = devices.findIndex(d => d.id === deviceId);
-            if (deviceIndex !== -1) {
-                const device = devices[deviceIndex];
-                const timestamp = new Date().toISOString();
-                const previousUser = device.assignedTo;
-                
-                // Update device status
-                device.status = 'available';
-                delete device.assignedTo;
-                delete device.checkoutTime;
-                delete device.checkoutNotes;
-                
-                // Add to history
-                device.history.push({
-                    type: 'checkin',
-                    timestamp: timestamp,
-                    user: previousUser,
-                    notes: notes || ''
-                });
-                
-                // Save changes
-                saveData();
-                renderDevices();
-            }
-        }
-        
-        // Add a new device
-        function addDevice(name, serialNumber, assetId) {
-            const newDevice = {
-                id: generateId(),
-                name: name,
-                serialNumber: serialNumber,
-                assetId: assetId,
-                status: 'available',
-                history: [],
-                dateAdded: new Date().toISOString()
-            };
-            
-            devices.push(newDevice);
-            saveData();
-            renderDevices();
-        }
-        
-        // Delete a device
-        function deleteDevice(deviceId) {
-            const deviceIndex = devices.findIndex(d => d.id === deviceId);
-            if (deviceIndex !== -1) {
-                devices.splice(deviceIndex, 1);
-                saveData();
-                renderDevices();
-            }
-        }
-        
         // Show checkout modal
         function showCheckoutModal(device) {
             const modal = document.getElementById('checkoutModal');
@@ -723,8 +907,24 @@
             `;
             
             // Reset form fields
-            document.getElementById('assignedUser').value = '';
+            document.getElementById('pupilName').value = '';
+            document.getElementById('staffMember').value = '';
+            document.getElementById('ward').value = '';
             document.getElementById('checkoutNotes').value = '';
+            
+            // Populate staff dropdown
+            const staffSelect = document.getElementById('staffMember');
+            staffSelect.innerHTML = '<option value="">Select Staff Member</option>';
+            staff.forEach(member => {
+                staffSelect.innerHTML += `<option value="${member.id}">${member.name} (${member.role})</option>`;
+            });
+            
+            // Populate ward dropdown
+            const wardSelect = document.getElementById('ward');
+            wardSelect.innerHTML = '<option value="">Select Ward</option>';
+            wards.forEach(ward => {
+                wardSelect.innerHTML += `<option value="${ward.id}">${ward.name}</option>`;
+            });
             
             // Set device ID for checkout confirmation
             document.getElementById('confirmCheckout').dataset.deviceId = device.id;
@@ -800,7 +1000,7 @@
                     
                     let actionText = '';
                     if (item.type === 'checkout') {
-                        actionText = `Checked out to <strong>${item.user}</strong>`;
+                        actionText = `Checked out to <strong>${item.pupil}</strong>`;
                     } else if (item.type === 'checkin') {
                         actionText = `Returned by <strong>${item.user}</strong>`;
                     }
@@ -837,6 +1037,71 @@
             modal.classList.add('active');
         }
         
+        // Render staff list
+        function renderStaffList() {
+            const staffList = document.getElementById('staffList');
+            staffList.innerHTML = '';
+            
+            if (staff.length === 0) {
+                staffList.innerHTML = '<div class="empty-message">No staff members added yet</div>';
+                return;
+            }
+            
+            staff.forEach(member => {
+                const staffItem = document.createElement('div');
+                staffItem.className = 'list-item';
+                staffItem.innerHTML = `
+                    <div class="item-details">
+                        <strong>${member.name}</strong>
+                        <span class="role">${member.role}</span>
+                    </div>
+                    <button class="btn-danger delete-staff" data-id="${member.id}">Delete</button>
+                `;
+                staffList.appendChild(staffItem);
+            });
+            
+            // Add delete event listeners
+            document.querySelectorAll('.delete-staff').forEach(button => {
+                button.addEventListener('click', (e) => {
+                    if (confirm('Are you sure you want to delete this staff member?')) {
+                        deleteStaffMember(e.target.dataset.id);
+                    }
+                });
+            });
+        }
+        
+        // Render ward list
+        function renderWardList() {
+            const wardList = document.getElementById('wardList');
+            wardList.innerHTML = '';
+            
+            if (wards.length === 0) {
+                wardList.innerHTML = '<div class="empty-message">No wards added yet</div>';
+                return;
+            }
+            
+            wards.forEach(ward => {
+                const wardItem = document.createElement('div');
+                wardItem.className = 'list-item';
+                wardItem.innerHTML = `
+                    <div class="item-details">
+                        <strong>${ward.name}</strong>
+                    </div>
+                    <button class="btn-danger delete-ward" data-id="${ward.id}">Delete</button>
+                `;
+                wardList.appendChild(wardItem);
+            });
+            
+            // Add delete event listeners
+            document.querySelectorAll('.delete-ward').forEach(button => {
+                button.addEventListener('click', (e) => {
+                    if (confirm('Are you sure you want to delete this ward?')) {
+                        deleteWard(e.target.dataset.id);
+                    }
+                });
+            });
+        }
+        
         // Event Listeners
         document.addEventListener('DOMContentLoaded', () => {
             // Load data
@@ -848,14 +1113,16 @@
             // Checkout modal events
             document.getElementById('confirmCheckout').addEventListener('click', () => {
                 const deviceId = document.getElementById('confirmCheckout').dataset.deviceId;
-                const userName = document.getElementById('assignedUser').value.trim();
+                const pupilName = document.getElementById('pupilName').value.trim();
+                const staffId = document.getElementById('staffMember').value;
+                const wardId = document.getElementById('ward').value;
                 const notes = document.getElementById('checkoutNotes').value.trim();
                 
-                if (userName) {
-                    checkoutDevice(deviceId, userName, notes);
+                if (pupilName && staffId && wardId) {
+                    checkoutDevice(deviceId, pupilName, staffId, wardId, notes);
                     document.getElementById('checkoutModal').classList.remove('active');
                 } else {
-                    alert('Please enter a user name');
+                    alert('Please fill all required fields');
                 }
             });
             
@@ -934,6 +1201,50 @@
                         modal.classList.remove('active');
                     });
                 }
+            });
+            
+            // Staff management events
+            document.getElementById('showAddStaffModal').addEventListener('click', () => {
+                document.getElementById('staffName').value = '';
+                document.getElementById('staffRole').value = '';
+                document.getElementById('addStaffModal').classList.add('active');
+            });
+            
+            document.getElementById('confirmAddStaff').addEventListener('click', () => {
+                const name = document.getElementById('staffName').value.trim();
+                const role = document.getElementById('staffRole').value.trim();
+                
+                if (name && role) {
+                    addStaffMember(name, role);
+                    document.getElementById('addStaffModal').classList.remove('active');
+                } else {
+                    alert('Please fill all required fields');
+                }
+            });
+            
+            document.getElementById('cancelAddStaff').addEventListener('click', () => {
+                document.getElementById('addStaffModal').classList.remove('active');
+            });
+            
+            // Ward management events
+            document.getElementById('showAddWardModal').addEventListener('click', () => {
+                document.getElementById('wardName').value = '';
+                document.getElementById('addWardModal').classList.add('active');
+            });
+            
+            document.getElementById('confirmAddWard').addEventListener('click', () => {
+                const name = document.getElementById('wardName').value.trim();
+                
+                if (name) {
+                    addWard(name);
+                    document.getElementById('addWardModal').classList.remove('active');
+                } else {
+                    alert('Please enter a ward name');
+                }
+            });
+            
+            document.getElementById('cancelAddWard').addEventListener('click', () => {
+                document.getElementById('addWardModal').classList.remove('active');
             });
         });
     </script>
