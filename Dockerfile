@@ -30,9 +30,12 @@ RUN npm install --build-from-source
 # Copy app source
 COPY . .
 
-# Create data directory for SQLite database
+# Create data directory for SQLite database with full permissions
 RUN mkdir -p /usr/src/app/data && \
-    chown -R node:node /usr/src/app/data
+    chmod -R 777 /usr/src/app/data && \
+    # We need to ensure SQLite can write to the directory
+    touch /usr/src/app/data/.placeholder && \
+    chmod 666 /usr/src/app/data/.placeholder
 
 # Switch to non-root user
 USER node

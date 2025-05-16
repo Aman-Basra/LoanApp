@@ -9,11 +9,13 @@ services:
     ports:
       - "3000:3000"
     volumes:
-      - ./data:/usr/src/app/data:rw
+      - db-data:/usr/src/app/data
     environment:
       - NODE_ENV=production
       - PORT=3000
       - TZ=UTC
+      # Explicitly disable WAL to avoid cross-platform issues
+      - SQLITE_DISABLE_WAL=1
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3000/api/devices"]
@@ -26,4 +28,8 @@ services:
         limits:
           memory: 512M
         reservations:
-          memory: 256M 
+          memory: 256M
+
+volumes:
+  db-data:
+    driver: local 

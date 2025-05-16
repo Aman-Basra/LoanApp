@@ -8,19 +8,39 @@ const os = require('os');
 const app = express();
 const port = process.env.PORT || 3000;
 
+console.log('Starting server with process UID:', process.getuid ? process.getuid() : 'N/A');
+console.log('Starting server with process GID:', process.getgid ? process.getgid() : 'N/A');
+
 // Ensure data directory exists with proper permissions
 const dataDir = path.join(__dirname, '..', 'data');
-if (!fs.existsSync(dataDir)) {
-    try {
-        fs.mkdirSync(dataDir, { recursive: true, mode: 0o755 });
+console.log('Data directory path:', dataDir);
+
+try {
+    if (!fs.existsSync(dataDir)) {
+        fs.mkdirSync(dataDir, { recursive: true, mode: 0o777 });
         console.log('Created data directory:', dataDir);
-    } catch (err) {
-        console.error('Error creating data directory:', err);
-        process.exit(1);
+    } else {
+        // Ensure permissions are correct
+        fs.chmodSync(dataDir, 0o777);
+        console.log('Updated permissions for data directory');
     }
+    
+    // Log directory information
+    const stats = fs.statSync(dataDir);
+    console.log('Directory stats:', {
+        mode: stats.mode.toString(8),
+        uid: stats.uid,
+        gid: stats.gid,
+        isDirectory: stats.isDirectory(),
+        isWritable: Boolean(stats.mode & 0o200)
+    });
+} catch (err) {
+    console.error('Error with data directory:', err);
+    process.exit(1);
 }
 
 const dbPath = path.join(dataDir, 'devices.db');
+console.log('Database path:', dbPath);
 
 // Middleware
 app.use(cors());
@@ -30,18 +50,42 @@ app.use(express.static(path.join(__dirname, '..')));
 // Database setup
 function initializeDatabase() {
     return new Promise((resolve, reject) => {
+        console.log('Initializing database...');
+        
         // Remove existing database if it exists
-        if (fs.existsSync(dbPath)) {
-            try {
+        try {
+            if (fs.existsSync(dbPath)) {
                 fs.unlinkSync(dbPath);
                 console.log('Removed existing database file');
-            } catch (err) {
-                console.error('Error removing existing database:', err);
-                reject(err);
-                return;
             }
+        } catch (err) {
+            console.error('Error removing existing database:', err);
+            // Continue even if we couldn't remove it
+        }
+        
+        // Create an empty file with proper permissions
+        try {
+            fs.writeFileSync(dbPath, '', { mode: 0o666 });
+            fs.chmodSync(dbPath, 0o666);
+            console.log('Created empty database file with permissions 666');
+            
+            // Log file information
+            const stats = fs.statSync(dbPath);
+            console.log('Database file stats:', {
+                mode: stats.mode.toString(8),
+                uid: stats.uid,
+                gid: stats.gid,
+                size: stats.size,
+                isFile: stats.isFile(),
+                isWritable: Boolean(stats.mode & 0o200)
+            });
+        } catch (err) {
+            console.error('Error creating database file:', err);
+            reject(err);
+            return;
         }
 
+        console.log('Opening database connection...');
         const db = new sqlite3.Database(dbPath, (err) => {
             if (err) {
                 console.error('Error opening database:', err);
@@ -52,16 +96,37 @@ function initializeDatabase() {
 
             // Set database configuration
             db.configure('busyTimeout', 5000);
-            db.configure('journalMode', 'WAL');
+            
+            try {
+                // Use WAL mode only if supported
+                db.run('PRAGMA journal_mode = WAL', function(err) {
+                    if (err) {
+                        console.warn('WAL mode not supported, using default journal mode:', err);
+                    } else {
+                        console.log('Set journal mode to WAL');
+                    }
+                });
+            } catch (err) {
+                console.warn('Error setting journal mode:', err);
+            }
 
             db.serialize(() => {
                 // Enable foreign keys
-                db.run('PRAGMA foreign_keys = ON', (err) => {
-                    if (err) {
-                        console.error('Error enabling foreign keys:', err);
-                    }
-                });
+                try {
+                    db.run('PRAGMA foreign_keys = ON', (err) => {
+                        if (err) {
+                            console.error('Error enabling foreign keys:', err);
+                        } else {
+                            console.log('Enabled foreign keys');
+                        }
+                    });
+                } catch (err) {
+                    console.warn('Error setting foreign keys:', err);
+                }
 
+                // Create tables
+                console.log('Creating database tables...');
+                
                 // Devices table
                 db.run(`CREATE TABLE IF NOT EXISTS devices (
                     id TEXT PRIMARY KEY,
@@ -157,25 +222,34 @@ function initializeDatabase() {
                     });
 
                 // Sample staff
-                const sampleStaff = [
-                    [Date.now().toString(36) + Math.random().toString(36).substr(2), 'John Smith', 'Teacher'],
-                    [Date.now().toString(36) + Math.random().toString(36).substr(2), 'Jane Doe', 'Nurse']
-                ];
-                const staffStmt = db.prepare('INSERT INTO staff (id, name, role) VALUES (?, ?, ?)');
-                sampleStaff.forEach(staff => staffStmt.run(staff));
-                staffStmt.finalize();
-                console.log('Sample staff added successfully');
+                try {
+                    const sampleStaff = [
+                        [Date.now().toString(36) + Math.random().toString(36).substr(2), 'John Smith', 'Teacher'],
+                        [Date.now().toString(36) + Math.random().toString(36).substr(2), 'Jane Doe', 'Nurse']
+                    ];
+                    const staffStmt = db.prepare('INSERT INTO staff (id, name, role) VALUES (?, ?, ?)');
+                    sampleStaff.forEach(staff => staffStmt.run(staff));
+                    staffStmt.finalize();
+                    console.log('Sample staff added successfully');
+                } catch (err) {
+                    console.error('Error adding sample staff:', err);
+                }
 
                 // Sample wards
-                const sampleWards = [
-                    [Date.now().toString(36) + Math.random().toString(36).substr(2), 'Ward A'],
-                    [Date.now().toString(36) + Math.random().toString(36).substr(2), 'Ward B']
-                ];
-                const wardStmt = db.prepare('INSERT INTO wards (id, name) VALUES (?, ?)');
-                sampleWards.forEach(ward => wardStmt.run(ward));
-                wardStmt.finalize();
-                console.log('Sample wards added successfully');
+                try {
+                    const sampleWards = [
+                        [Date.now().toString(36) + Math.random().toString(36).substr(2), 'Ward A'],
+                        [Date.now().toString(36) + Math.random().toString(36).substr(2), 'Ward B']
+                    ];
+                    const wardStmt = db.prepare('INSERT INTO wards (id, name) VALUES (?, ?)');
+                    sampleWards.forEach(ward => wardStmt.run(ward));
+                    wardStmt.finalize();
+                    console.log('Sample wards added successfully');
+                } catch (err) {
+                    console.error('Error adding sample wards:', err);
+                }
 
+                console.log('Database initialization completed successfully');
                 resolve(db);
             });
         });
@@ -183,8 +257,11 @@ function initializeDatabase() {
 }
 
 // Initialize database and start server
+console.log('Starting database initialization...');
 initializeDatabase()
     .then(db => {
+        console.log('Database initialized successfully, starting server...');
+        
         // Make db available globally
         app.locals.db = db;
 
@@ -198,6 +275,7 @@ initializeDatabase()
         app.get('/api/devices', (req, res) => {
             db.all('SELECT * FROM devices', (err, rows) => {
                 if (err) {
+                    console.error('Error getting devices:', err);
                     res.status(500).json({ error: err.message });
                     return;
                 }
@@ -353,6 +431,7 @@ initializeDatabase()
             console.log(`Database initialized at ${dbPath}`);
             console.log(`Platform: ${os.platform()}`);
             console.log(`Architecture: ${os.arch()}`);
+            console.log('Node.js version:', process.version);
         });
 
         // Handle server shutdown
@@ -371,5 +450,6 @@ initializeDatabase()
     })
     .catch(err => {
         console.error('Failed to initialize database:', err);
+        console.error('Error details:', err.code, err.errno);
         process.exit(1);
     }); 
