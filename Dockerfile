@@ -6,6 +6,8 @@ RUN apt-get update && apt-get install -y \
     python3 \
     make \
     g++ \
+    python-is-python3 \
+    libsqlite3-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # Create app directory
@@ -15,6 +17,7 @@ WORKDIR /usr/src/app
 COPY package*.json ./
 
 # Install dependencies with SQLite3 build flags
+ENV npm_config_build_from_source=true
 RUN npm install --build-from-source
 
 # Copy app source
