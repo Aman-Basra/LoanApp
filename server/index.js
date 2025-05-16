@@ -17,12 +17,9 @@ console.log('Data directory path:', dataDir);
 
 try {
     if (!fs.existsSync(dataDir)) {
-        fs.mkdirSync(dataDir, { recursive: true, mode: 0o777 });
+        // Try to create the directory, but don't try to change permissions
+        fs.mkdirSync(dataDir, { recursive: true });
         console.log('Created data directory:', dataDir);
-    } else {
-        // Ensure permissions are correct
-        fs.chmodSync(dataDir, 0o777);
-        console.log('Updated permissions for data directory');
     }
     
     // Log directory information
@@ -36,7 +33,8 @@ try {
     });
 } catch (err) {
     console.error('Error with data directory:', err);
-    process.exit(1);
+    // Don't exit, try to continue
+    console.log('Continuing despite data directory error');
 }
 
 const dbPath = path.join(dataDir, 'devices.db');
@@ -55,38 +53,22 @@ function initializeDatabase() {
         // Remove existing database if it exists
         try {
             if (fs.existsSync(dbPath)) {
-                fs.unlinkSync(dbPath);
-                console.log('Removed existing database file');
+                try {
+                    fs.unlinkSync(dbPath);
+                    console.log('Removed existing database file');
+                } catch (err) {
+                    console.warn('Could not remove existing database file:', err);
+                    // Continue anyway
+                }
             }
         } catch (err) {
-            console.error('Error removing existing database:', err);
-            // Continue even if we couldn't remove it
+            console.warn('Error checking if database exists:', err);
+            // Continue anyway
         }
         
-        // Create an empty file with proper permissions
-        try {
-            fs.writeFileSync(dbPath, '', { mode: 0o666 });
-            fs.chmodSync(dbPath, 0o666);
-            console.log('Created empty database file with permissions 666');
-            
-            // Log file information
-            const stats = fs.statSync(dbPath);
-            console.log('Database file stats:', {
-                mode: stats.mode.toString(8),
-                uid: stats.uid,
-                gid: stats.gid,
-                size: stats.size,
-                isFile: stats.isFile(),
-                isWritable: Boolean(stats.mode & 0o200)
-            });
-        } catch (err) {
-            console.error('Error creating database file:', err);
-            reject(err);
-            return;
-        }
-
+        // Try to open the database without creating a file first
         console.log('Opening database connection...');
-        const db = new sqlite3.Database(dbPath, (err) => {
+        const db = new sqlite3.Database(dbPath, sqlite3.OPEN_READWRITE | sqlite3.OPEN_CREATE, (err) => {
             if (err) {
                 console.error('Error opening database:', err);
                 reject(err);
@@ -97,17 +79,21 @@ function initializeDatabase() {
             // Set database configuration
             db.configure('busyTimeout', 5000);
             
-            try {
-                // Use WAL mode only if supported
-                db.run('PRAGMA journal_mode = WAL', function(err) {
-                    if (err) {
-                        console.warn('WAL mode not supported, using default journal mode:', err);
-                    } else {
-                        console.log('Set journal mode to WAL');
-                    }
-                });
-            } catch (err) {
-                console.warn('Error setting journal mode:', err);
+            // Only use WAL mode if explicitly not disabled
+            if (process.env.SQLITE_DISABLE_WAL !== '1') {
+                try {
+                    db.run('PRAGMA journal_mode = WAL', function(err) {
+                        if (err) {
+                            console.warn('WAL mode not supported, using default journal mode:', err);
+                        } else {
+                            console.log('Set journal mode to WAL');
+                        }
+                    });
+                } catch (err) {
+                    console.warn('Error setting journal mode:', err);
+                }
+            } else {
+                console.log('WAL mode disabled by environment variable');
             }
 
             db.serialize(() => {
@@ -196,64 +182,80 @@ function initializeDatabase() {
                     console.log('Wards table created or already exists');
                 });
 
-                // Add sample data
-                console.log('Adding sample data...');
-                
-                // Sample device
-                const sampleDevice = {
-                    id: Date.now().toString(36) + Math.random().toString(36).substr(2),
-                    name: 'MacBook Pro 16"',
-                    serialNumber: 'FVFXC123456',
-                    assetId: 'IT-1001',
-                    status: 'available',
-                    dateAdded: new Date().toISOString()
-                };
-
-                db.run(`INSERT INTO devices (id, name, serialNumber, assetId, status, dateAdded)
-                    VALUES (?, ?, ?, ?, ?, ?)`,
-                    [sampleDevice.id, sampleDevice.name, sampleDevice.serialNumber, 
-                     sampleDevice.assetId, sampleDevice.status, sampleDevice.dateAdded],
-                    (err) => {
-                        if (err) {
-                            console.error('Error adding sample device:', err);
-                        } else {
-                            console.log('Sample device added successfully');
-                        }
-                    });
-
-                // Sample staff
-                try {
-                    const sampleStaff = [
-                        [Date.now().toString(36) + Math.random().toString(36).substr(2), 'John Smith', 'Teacher'],
-                        [Date.now().toString(36) + Math.random().toString(36).substr(2), 'Jane Doe', 'Nurse']
-                    ];
-                    const staffStmt = db.prepare('INSERT INTO staff (id, name, role) VALUES (?, ?, ?)');
-                    sampleStaff.forEach(staff => staffStmt.run(staff));
-                    staffStmt.finalize();
-                    console.log('Sample staff added successfully');
-                } catch (err) {
-                    console.error('Error adding sample staff:', err);
-                }
-
-                // Sample wards
-                try {
-                    const sampleWards = [
-                        [Date.now().toString(36) + Math.random().toString(36).substr(2), 'Ward A'],
-                        [Date.now().toString(36) + Math.random().toString(36).substr(2), 'Ward B']
-                    ];
-                    const wardStmt = db.prepare('INSERT INTO wards (id, name) VALUES (?, ?)');
-                    sampleWards.forEach(ward => wardStmt.run(ward));
-                    wardStmt.finalize();
-                    console.log('Sample wards added successfully');
-                } catch (err) {
-                    console.error('Error adding sample wards:', err);
-                }
-
-                console.log('Database initialization completed successfully');
-                resolve(db);
+                // Check if we need to add sample data
+                db.get("SELECT COUNT(*) as count FROM devices", (err, row) => {
+                    if (err) {
+                        console.error('Error checking devices table:', err);
+                        // Continue anyway, assume we need to add sample data
+                        addSampleData(db);
+                    } else if (row.count === 0) {
+                        // Add sample data if table is empty
+                        addSampleData(db);
+                    } else {
+                        console.log('Sample data already exists, skipping');
+                        resolve(db);
+                    }
+                });
             });
         });
     });
+}
+
+// Function to add sample data
+function addSampleData(db) {
+    console.log('Adding sample data...');
+    
+    // Sample device
+    const sampleDevice = {
+        id: Date.now().toString(36) + Math.random().toString(36).substr(2),
+        name: 'MacBook Pro 16"',
+        serialNumber: 'FVFXC123456',
+        assetId: 'IT-1001',
+        status: 'available',
+        dateAdded: new Date().toISOString()
+    };
+
+    db.run(`INSERT INTO devices (id, name, serialNumber, assetId, status, dateAdded)
+        VALUES (?, ?, ?, ?, ?, ?)`,
+        [sampleDevice.id, sampleDevice.name, sampleDevice.serialNumber, 
+         sampleDevice.assetId, sampleDevice.status, sampleDevice.dateAdded],
+        (err) => {
+            if (err) {
+                console.error('Error adding sample device:', err);
+            } else {
+                console.log('Sample device added successfully');
+            }
+        });
+
+    // Sample staff
+    try {
+        const sampleStaff = [
+            [Date.now().toString(36) + Math.random().toString(36).substr(2), 'John Smith', 'Teacher'],
+            [Date.now().toString(36) + Math.random().toString(36).substr(2), 'Jane Doe', 'Nurse']
+        ];
+        const staffStmt = db.prepare('INSERT INTO staff (id, name, role) VALUES (?, ?, ?)');
+        sampleStaff.forEach(staff => staffStmt.run(staff));
+        staffStmt.finalize();
+        console.log('Sample staff added successfully');
+    } catch (err) {
+        console.error('Error adding sample staff:', err);
+    }
+
+    // Sample wards
+    try {
+        const sampleWards = [
+            [Date.now().toString(36) + Math.random().toString(36).substr(2), 'Ward A'],
+            [Date.now().toString(36) + Math.random().toString(36).substr(2), 'Ward B']
+        ];
+        const wardStmt = db.prepare('INSERT INTO wards (id, name) VALUES (?, ?)');
+        sampleWards.forEach(ward => wardStmt.run(ward));
+        wardStmt.finalize();
+        console.log('Sample wards added successfully');
+    } catch (err) {
+        console.error('Error adding sample wards:', err);
+    }
+
+    console.log('Database initialization completed successfully');
 }
 
 // Initialize database and start server
