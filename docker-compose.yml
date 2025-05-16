@@ -4,7 +4,6 @@ services:
   app:
     build: 
       context: .
-      platform: linux/amd64
     image: yourusername/device-management-system:latest
     ports:
       - "443:3000"
