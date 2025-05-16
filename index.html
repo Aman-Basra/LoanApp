@@ -1,0 +1,941 @@
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Device Management System</title>
+    <style>
+        :root {
+            --primary: #3498db;
+            --secondary: #2ecc71;
+            --danger: #e74c3c;
+            --dark: #34495e;
+            --light: #ecf0f1;
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        body {
+            background-color: #f5f5f5;
+            color: #333;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        header {
+            background-color: var(--dark);
+            color: white;
+            padding: 20px 0;
+            margin-bottom: 30px;
+        }
+        
+        h1 {
+            text-align: center;
+            margin-bottom: 10px;
+        }
+        
+        .tabs {
+            display: flex;
+            justify-content: center;
+            margin-bottom: 30px;
+        }
+        
+        .tab-button {
+            padding: 12px 24px;
+            margin: 0 10px;
+            border: none;
+            border-radius: 5px;
+            background-color: var(--light);
+            color: var(--dark);
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .tab-button:hover {
+            opacity: 0.9;
+        }
+        
+        .tab-button.active {
+            background-color: var(--primary);
+            color: white;
+        }
+        
+        .page {
+            display: none;
+        }
+        
+        .page.active {
+            display: block;
+        }
+        
+        .device-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 20px;
+        }
+        
+        .device-card {
+            background-color: white;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+        
+        .device-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+        }
+        
+        .device-card h3 {
+            margin-bottom: 10px;
+            color: var(--dark);
+        }
+        
+        .device-detail {
+            margin-bottom: 8px;
+            color: #666;
+        }
+        
+        .device-detail span {
+            font-weight: bold;
+            color: #333;
+        }
+        
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        .modal.active {
+            display: flex;
+        }
+        
+        .modal-content {
+            background-color: white;
+            padding: 30px;
+            border-radius: 10px;
+            width: 90%;
+            max-width: 500px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+        }
+        
+        .modal-header {
+            margin-bottom: 20px;
+        }
+        
+        .modal-body {
+            margin-bottom: 30px;
+        }
+        
+        .modal-footer {
+            display: flex;
+            justify-content: flex-end;
+        }
+        
+        .modal-footer button {
+            margin-left: 10px;
+        }
+        
+        input, textarea {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        
+        button {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        
+        .btn-primary {
+            background-color: var(--primary);
+            color: white;
+        }
+        
+        .btn-secondary {
+            background-color: var(--secondary);
+            color: white;
+        }
+        
+        .btn-danger {
+            background-color: var(--danger);
+            color: white;
+        }
+        
+        .btn-cancel {
+            background-color: #ccc;
+            color: #333;
+        }
+        
+        .empty-message {
+            text-align: center;
+            padding: 30px;
+            color: #999;
+            font-style: italic;
+        }
+        
+        .add-device-button {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            background-color: var(--secondary);
+            color: white;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 24px;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+            cursor: pointer;
+            z-index: 100;
+        }
+        
+        .badge {
+            display: inline-block;
+            padding: 5px 10px;
+            border-radius: 50px;
+            font-size: 12px;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+        
+        .badge-available {
+            background-color: #e1f5fe;
+            color: #0288d1;
+        }
+        
+        .badge-checked-out {
+            background-color: #ffebee;
+            color: #c62828;
+        }
+        
+        .user-info {
+            margin-top: 10px;
+            padding-top: 10px;
+            border-top: 1px solid #eee;
+        }
+        
+        #addDeviceForm .form-group {
+            margin-bottom: 15px;
+        }
+        
+        #addDeviceForm label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        
+        .history-button {
+            margin-top: 10px;
+            background-color: #f8f9fa;
+            border: 1px solid #ddd;
+            color: #666;
+            font-size: 12px;
+            padding: 5px 10px;
+        }
+        
+        #historyModal .history-list {
+            max-height: 300px;
+            overflow-y: auto;
+            border: 1px solid #eee;
+            padding: 10px;
+            margin-bottom: 15px;
+            border-radius: 5px;
+        }
+        
+        .history-item {
+            padding: 10px;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .history-item:last-child {
+            border-bottom: none;
+        }
+        
+        .timestamp {
+            font-size: 12px;
+            color: #999;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="container">
+            <h1>Device Management System</h1>
+        </div>
+    </header>
+    
+    <div class="container">
+        <div class="tabs">
+            <button class="tab-button active" data-tab="checkoutPage">Check Out</button>
+            <button class="tab-button" data-tab="checkinPage">Check In</button>
+            <button class="tab-button" data-tab="manageDevicesPage">Manage Devices</button>
+        </div>
+        
+        <div id="checkoutPage" class="page active">
+            <h2>Available Devices for Check Out</h2>
+            <div id="availableDevices" class="device-grid">
+                <!-- Available devices will be populated here -->
+            </div>
+        </div>
+        
+        <div id="checkinPage" class="page">
+            <h2>Devices Currently Checked Out</h2>
+            <div id="checkedOutDevices" class="device-grid">
+                <!-- Checked out devices will be populated here -->
+            </div>
+        </div>
+        
+        <div id="manageDevicesPage" class="page">
+            <h2>Manage Devices</h2>
+            <button id="showAddDeviceModal" class="btn-primary">Add New Device</button>
+            <div id="allDevices" class="device-grid" style="margin-top: 20px;">
+                <!-- All devices will be populated here -->
+            </div>
+        </div>
+    </div>
+    
+    <div id="checkoutModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Check Out Device</h2>
+            </div>
+            <div class="modal-body">
+                <div id="checkoutDeviceDetails"></div>
+                <div class="form-group">
+                    <label for="assignedUser">User Name:</label>
+                    <input type="text" id="assignedUser" placeholder="Enter the name of the person">
+                </div>
+                <div class="form-group">
+                    <label for="checkoutNotes">Notes (Optional):</label>
+                    <textarea id="checkoutNotes" placeholder="Enter any additional notes"></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button id="cancelCheckout" class="btn-cancel">Cancel</button>
+                <button id="confirmCheckout" class="btn-primary">Assign Device</button>
+            </div>
+        </div>
+    </div>
+    
+    <div id="checkinModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Check In Device</h2>
+            </div>
+            <div class="modal-body">
+                <div id="checkinDeviceDetails"></div>
+                <div class="form-group">
+                    <label for="checkinNotes">Return Notes (Optional):</label>
+                    <textarea id="checkinNotes" placeholder="Enter any notes about the device condition or return"></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button id="cancelCheckin" class="btn-cancel">Cancel</button>
+                <button id="confirmCheckin" class="btn-secondary">Return Device</button>
+            </div>
+        </div>
+    </div>
+    
+    <div id="addDeviceModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Add New Device</h2>
+            </div>
+            <div class="modal-body">
+                <form id="addDeviceForm">
+                    <div class="form-group">
+                        <label for="deviceName">Device Name:</label>
+                        <input type="text" id="deviceName" required placeholder="e.g. MacBook Pro 13">
+                    </div>
+                    <div class="form-group">
+                        <label for="serialNumber">Serial Number:</label>
+                        <input type="text" id="serialNumber" required placeholder="e.g. C02XL0GYHH27">
+                    </div>
+                    <div class="form-group">
+                        <label for="assetId">Asset ID:</label>
+                        <input type="text" id="assetId" required placeholder="e.g. IT-1234">
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button id="cancelAddDevice" class="btn-cancel">Cancel</button>
+                <button id="confirmAddDevice" class="btn-secondary">Add Device</button>
+            </div>
+        </div>
+    </div>
+    
+    <div id="historyModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Device History</h2>
+            </div>
+            <div class="modal-body">
+                <div id="deviceHistoryDetails"></div>
+                <div class="history-list" id="historyList">
+                    <!-- History items will be populated here -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button id="closeHistory" class="btn-cancel">Close</button>
+            </div>
+        </div>
+    </div>
+    
+    <div id="deleteDeviceModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Delete Device</h2>
+            </div>
+            <div class="modal-body">
+                <p>Are you sure you want to delete this device? This action cannot be undone.</p>
+                <div id="deleteDeviceDetails"></div>
+            </div>
+            <div class="modal-footer">
+                <button id="cancelDeleteDevice" class="btn-cancel">Cancel</button>
+                <button id="confirmDeleteDevice" class="btn-danger">Delete Device</button>
+            </div>
+        </div>
+    </div>
+    
+    <div class="add-device-button" id="quickAddDeviceButton">+</div>
+
+    <script>
+        // Data model
+        let devices = [];
+        const storageKey = 'deviceManagementSystem';
+        
+        // Load data from localStorage
+        function loadData() {
+            const savedData = localStorage.getItem(storageKey);
+            if (savedData) {
+                devices = JSON.parse(savedData);
+            } else {
+                // Sample data for first time users
+                devices = [
+                    {
+                        id: generateId(),
+                        name: 'MacBook Pro 16"',
+                        serialNumber: 'FVFXC123456',
+                        assetId: 'IT-1001',
+                        status: 'available',
+                        history: [],
+                        dateAdded: new Date().toISOString()
+                    },
+                    {
+                        id: generateId(),
+                        name: 'iPad Pro 12.9"',
+                        serialNumber: 'IPDF987654',
+                        assetId: 'IT-1002',
+                        status: 'available',
+                        history: [],
+                        dateAdded: new Date().toISOString()
+                    },
+                    {
+                        id: generateId(),
+                        name: 'iPhone 15 Pro',
+                        serialNumber: 'IPHX456789',
+                        assetId: 'IT-1003',
+                        status: 'checked-out',
+                        assignedTo: 'John Smith',
+                        checkoutTime: new Date(Date.now() - 86400000).toISOString(),
+                        checkoutNotes: 'For project demo',
+                        history: [
+                            {
+                                type: 'checkout',
+                                timestamp: new Date(Date.now() - 86400000).toISOString(),
+                                user: 'John Smith',
+                                notes: 'For project demo'
+                            }
+                        ],
+                        dateAdded: new Date(Date.now() - 7 * 86400000).toISOString()
+                    }
+                ];
+                saveData();
+            }
+        }
+        
+        // Save data to localStorage
+        function saveData() {
+            localStorage.setItem(storageKey, JSON.stringify(devices));
+        }
+        
+        // Generate unique ID
+        function generateId() {
+            return Date.now().toString(36) + Math.random().toString(36).substr(2);
+        }
+        
+        // Format date for display
+        function formatDate(dateString) {
+            const date = new Date(dateString);
+            return date.toLocaleDateString() + ' ' + date.toLocaleTimeString();
+        }
+        
+        // Tab switching
+        document.querySelectorAll('.tab-button').forEach(button => {
+            button.addEventListener('click', () => {
+                // Deactivate all tabs
+                document.querySelectorAll('.tab-button').forEach(btn => {
+                    btn.classList.remove('active');
+                });
+                document.querySelectorAll('.page').forEach(page => {
+                    page.classList.remove('active');
+                });
+                
+                // Activate the clicked tab
+                button.classList.add('active');
+                document.getElementById(button.dataset.tab).classList.add('active');
+                
+                // Refresh the device lists
+                renderDevices();
+            });
+        });
+        
+        // Render devices on the appropriate pages
+        function renderDevices() {
+            const availableDevicesContainer = document.getElementById('availableDevices');
+            const checkedOutDevicesContainer = document.getElementById('checkedOutDevices');
+            const allDevicesContainer = document.getElementById('allDevices');
+            
+            // Clear previous content
+            availableDevicesContainer.innerHTML = '';
+            checkedOutDevicesContainer.innerHTML = '';
+            allDevicesContainer.innerHTML = '';
+            
+            // Filter devices by status
+            const availableDevices = devices.filter(device => device.status === 'available');
+            const checkedOutDevices = devices.filter(device => device.status === 'checked-out');
+            
+            // Render available devices
+            if (availableDevices.length === 0) {
+                availableDevicesContainer.innerHTML = '<div class="empty-message">No devices available for checkout</div>';
+            } else {
+                availableDevices.forEach(device => {
+                    const deviceCard = createDeviceCard(device, 'checkout');
+                    availableDevicesContainer.appendChild(deviceCard);
+                });
+            }
+            
+            // Render checked out devices
+            if (checkedOutDevices.length === 0) {
+                checkedOutDevicesContainer.innerHTML = '<div class="empty-message">No devices are currently checked out</div>';
+            } else {
+                checkedOutDevices.forEach(device => {
+                    const deviceCard = createDeviceCard(device, 'checkin');
+                    checkedOutDevicesContainer.appendChild(deviceCard);
+                });
+            }
+            
+            // Render all devices in manage page
+            if (devices.length === 0) {
+                allDevicesContainer.innerHTML = '<div class="empty-message">No devices in the system</div>';
+            } else {
+                devices.forEach(device => {
+                    const deviceCard = createDeviceCard(device, 'manage');
+                    allDevicesContainer.appendChild(deviceCard);
+                });
+            }
+        }
+        
+        // Create a device card
+        function createDeviceCard(device, action) {
+            const card = document.createElement('div');
+            card.className = 'device-card';
+            card.dataset.id = device.id;
+            
+            let statusBadge = '';
+            if (device.status === 'available') {
+                statusBadge = '<div class="badge badge-available">Available</div>';
+            } else {
+                statusBadge = '<div class="badge badge-checked-out">Checked Out</div>';
+            }
+            
+            card.innerHTML = `
+                ${statusBadge}
+                <h3>${device.name}</h3>
+                <div class="device-detail">Serial: <span>${device.serialNumber}</span></div>
+                <div class="device-detail">Asset ID: <span>${device.assetId}</span></div>
+            `;
+            
+            // Add user info for checked out devices
+            if (device.status === 'checked-out') {
+                card.innerHTML += `
+                    <div class="user-info">
+                        <div class="device-detail">Assigned to: <span>${device.assignedTo}</span></div>
+                        <div class="device-detail">Since: <span>${formatDate(device.checkoutTime)}</span></div>
+                        ${device.checkoutNotes ? `<div class="device-detail">Notes: <span>${device.checkoutNotes}</span></div>` : ''}
+                    </div>
+                `;
+            }
+            
+            // Add history button for manage view
+            if (action === 'manage') {
+                const historyButton = document.createElement('button');
+                historyButton.className = 'history-button';
+                historyButton.textContent = 'View History';
+                historyButton.addEventListener('click', (e) => {
+                    e.stopPropagation(); // Prevent card click
+                    showDeviceHistory(device);
+                });
+                card.appendChild(historyButton);
+                
+                const deleteButton = document.createElement('button');
+                deleteButton.className = 'btn-danger';
+                deleteButton.textContent = 'Delete';
+                deleteButton.style.marginTop = '10px';
+                deleteButton.addEventListener('click', (e) => {
+                    e.stopPropagation(); // Prevent card click
+                    showDeleteDeviceModal(device);
+                });
+                card.appendChild(deleteButton);
+            } else {
+                // Add click handler for checkout/checkin
+                card.addEventListener('click', () => {
+                    if (action === 'checkout') {
+                        showCheckoutModal(device);
+                    } else if (action === 'checkin') {
+                        showCheckinModal(device);
+                    }
+                });
+            }
+            
+            return card;
+        }
+        
+        // Check out a device
+        function checkoutDevice(deviceId, userName, notes) {
+            const deviceIndex = devices.findIndex(d => d.id === deviceId);
+            if (deviceIndex !== -1) {
+                const device = devices[deviceIndex];
+                const timestamp = new Date().toISOString();
+                
+                // Update device status
+                device.status = 'checked-out';
+                device.assignedTo = userName;
+                device.checkoutTime = timestamp;
+                device.checkoutNotes = notes || '';
+                
+                // Add to history
+                device.history.push({
+                    type: 'checkout',
+                    timestamp: timestamp,
+                    user: userName,
+                    notes: notes || ''
+                });
+                
+                // Save changes
+                saveData();
+                renderDevices();
+            }
+        }
+        
+        // Check in a device
+        function checkinDevice(deviceId, notes) {
+            const deviceIndex = devices.findIndex(d => d.id === deviceId);
+            if (deviceIndex !== -1) {
+                const device = devices[deviceIndex];
+                const timestamp = new Date().toISOString();
+                const previousUser = device.assignedTo;
+                
+                // Update device status
+                device.status = 'available';
+                delete device.assignedTo;
+                delete device.checkoutTime;
+                delete device.checkoutNotes;
+                
+                // Add to history
+                device.history.push({
+                    type: 'checkin',
+                    timestamp: timestamp,
+                    user: previousUser,
+                    notes: notes || ''
+                });
+                
+                // Save changes
+                saveData();
+                renderDevices();
+            }
+        }
+        
+        // Add a new device
+        function addDevice(name, serialNumber, assetId) {
+            const newDevice = {
+                id: generateId(),
+                name: name,
+                serialNumber: serialNumber,
+                assetId: assetId,
+                status: 'available',
+                history: [],
+                dateAdded: new Date().toISOString()
+            };
+            
+            devices.push(newDevice);
+            saveData();
+            renderDevices();
+        }
+        
+        // Delete a device
+        function deleteDevice(deviceId) {
+            const deviceIndex = devices.findIndex(d => d.id === deviceId);
+            if (deviceIndex !== -1) {
+                devices.splice(deviceIndex, 1);
+                saveData();
+                renderDevices();
+            }
+        }
+        
+        // Show checkout modal
+        function showCheckoutModal(device) {
+            const modal = document.getElementById('checkoutModal');
+            const detailsContainer = document.getElementById('checkoutDeviceDetails');
+            
+            detailsContainer.innerHTML = `
+                <h3>${device.name}</h3>
+                <div class="device-detail">Serial: <span>${device.serialNumber}</span></div>
+                <div class="device-detail">Asset ID: <span>${device.assetId}</span></div>
+            `;
+            
+            // Reset form fields
+            document.getElementById('assignedUser').value = '';
+            document.getElementById('checkoutNotes').value = '';
+            
+            // Set device ID for checkout confirmation
+            document.getElementById('confirmCheckout').dataset.deviceId = device.id;
+            
+            // Show modal
+            modal.classList.add('active');
+        }
+        
+        // Show checkin modal
+        function showCheckinModal(device) {
+            const modal = document.getElementById('checkinModal');
+            const detailsContainer = document.getElementById('checkinDeviceDetails');
+            
+            detailsContainer.innerHTML = `
+                <h3>${device.name}</h3>
+                <div class="device-detail">Serial: <span>${device.serialNumber}</span></div>
+                <div class="device-detail">Asset ID: <span>${device.assetId}</span></div>
+                <div class="device-detail">Checked out by: <span>${device.assignedTo}</span></div>
+                <div class="device-detail">Since: <span>${formatDate(device.checkoutTime)}</span></div>
+            `;
+            
+            // Reset form fields
+            document.getElementById('checkinNotes').value = '';
+            
+            // Set device ID for checkin confirmation
+            document.getElementById('confirmCheckin').dataset.deviceId = device.id;
+            
+            // Show modal
+            modal.classList.add('active');
+        }
+        
+        // Show add device modal
+        function showAddDeviceModal() {
+            const modal = document.getElementById('addDeviceModal');
+            
+            // Reset form fields
+            document.getElementById('deviceName').value = '';
+            document.getElementById('serialNumber').value = '';
+            document.getElementById('assetId').value = '';
+            
+            // Show modal
+            modal.classList.add('active');
+        }
+        
+        // Show device history modal
+        function showDeviceHistory(device) {
+            const modal = document.getElementById('historyModal');
+            const detailsContainer = document.getElementById('deviceHistoryDetails');
+            const historyList = document.getElementById('historyList');
+            
+            detailsContainer.innerHTML = `
+                <h3>${device.name}</h3>
+                <div class="device-detail">Serial: <span>${device.serialNumber}</span></div>
+                <div class="device-detail">Asset ID: <span>${device.assetId}</span></div>
+                <div class="device-detail">Status: <span>${device.status === 'available' ? 'Available' : 'Checked Out'}</span></div>
+                <div class="device-detail">Added on: <span>${formatDate(device.dateAdded)}</span></div>
+            `;
+            
+            // Clear previous history
+            historyList.innerHTML = '';
+            
+            if (device.history.length === 0) {
+                historyList.innerHTML = '<div class="empty-message">No history available</div>';
+            } else {
+                // Sort history by timestamp (newest first)
+                const sortedHistory = [...device.history].sort((a, b) => 
+                    new Date(b.timestamp) - new Date(a.timestamp)
+                );
+                
+                sortedHistory.forEach(item => {
+                    const historyItem = document.createElement('div');
+                    historyItem.className = 'history-item';
+                    
+                    let actionText = '';
+                    if (item.type === 'checkout') {
+                        actionText = `Checked out to <strong>${item.user}</strong>`;
+                    } else if (item.type === 'checkin') {
+                        actionText = `Returned by <strong>${item.user}</strong>`;
+                    }
+                    
+                    historyItem.innerHTML = `
+                        <div>${actionText}</div>
+                        <div class="timestamp">${formatDate(item.timestamp)}</div>
+                        ${item.notes ? `<div>Notes: ${item.notes}</div>` : ''}
+                    `;
+                    
+                    historyList.appendChild(historyItem);
+                });
+            }
+            
+            // Show modal
+            modal.classList.add('active');
+        }
+        
+        // Show delete device modal
+        function showDeleteDeviceModal(device) {
+            const modal = document.getElementById('deleteDeviceModal');
+            const detailsContainer = document.getElementById('deleteDeviceDetails');
+            
+            detailsContainer.innerHTML = `
+                <div class="device-detail">Device: <span>${device.name}</span></div>
+                <div class="device-detail">Serial: <span>${device.serialNumber}</span></div>
+                <div class="device-detail">Asset ID: <span>${device.assetId}</span></div>
+            `;
+            
+            // Set device ID for delete confirmation
+            document.getElementById('confirmDeleteDevice').dataset.deviceId = device.id;
+            
+            // Show modal
+            modal.classList.add('active');
+        }
+        
+        // Event Listeners
+        document.addEventListener('DOMContentLoaded', () => {
+            // Load data
+            loadData();
+            
+            // Render devices
+            renderDevices();
+            
+            // Checkout modal events
+            document.getElementById('confirmCheckout').addEventListener('click', () => {
+                const deviceId = document.getElementById('confirmCheckout').dataset.deviceId;
+                const userName = document.getElementById('assignedUser').value.trim();
+                const notes = document.getElementById('checkoutNotes').value.trim();
+                
+                if (userName) {
+                    checkoutDevice(deviceId, userName, notes);
+                    document.getElementById('checkoutModal').classList.remove('active');
+                } else {
+                    alert('Please enter a user name');
+                }
+            });
+            
+            document.getElementById('cancelCheckout').addEventListener('click', () => {
+                document.getElementById('checkoutModal').classList.remove('active');
+            });
+            
+            // Checkin modal events
+            document.getElementById('confirmCheckin').addEventListener('click', () => {
+                const deviceId = document.getElementById('confirmCheckin').dataset.deviceId;
+                const notes = document.getElementById('checkinNotes').value.trim();
+                
+                checkinDevice(deviceId, notes);
+                document.getElementById('checkinModal').classList.remove('active');
+            });
+            
+            document.getElementById('cancelCheckin').addEventListener('click', () => {
+                document.getElementById('checkinModal').classList.remove('active');
+            });
+            
+            // Add device modal events
+            document.getElementById('showAddDeviceModal').addEventListener('click', () => {
+                showAddDeviceModal();
+            });
+            
+            document.getElementById('quickAddDeviceButton').addEventListener('click', () => {
+                showAddDeviceModal();
+            });
+            
+            document.getElementById('confirmAddDevice').addEventListener('click', () => {
+                const name = document.getElementById('deviceName').value.trim();
+                const serialNumber = document.getElementById('serialNumber').value.trim();
+                const assetId = document.getElementById('assetId').value.trim();
+                
+                if (name && serialNumber && assetId) {
+                    addDevice(name, serialNumber, assetId);
+                    document.getElementById('addDeviceModal').classList.remove('active');
+                } else {
+                    alert('Please fill all required fields');
+                }
+            });
+            
+            document.getElementById('cancelAddDevice').addEventListener('click', () => {
+                document.getElementById('addDeviceModal').classList.remove('active');
+            });
+            
+            // Delete device modal events
+            document.getElementById('confirmDeleteDevice').addEventListener('click', () => {
+                const deviceId = document.getElementById('confirmDeleteDevice').dataset.deviceId;
+                deleteDevice(deviceId);
+                document.getElementById('deleteDeviceModal').classList.remove('active');
+            });
+            
+            document.getElementById('cancelDeleteDevice').addEventListener('click', () => {
+                document.getElementById('deleteDeviceModal').classList.remove('active');
+            });
+            
+            // History modal events
+            document.getElementById('closeHistory').addEventListener('click', () => {
+                document.getElementById('historyModal').classList.remove('active');
+            });
+            
+            // Close modals when clicking outside content
+            document.querySelectorAll('.modal').forEach(modal => {
+                modal.addEventListener('click', (e) => {
+                    if (e.target === modal) {
+                        modal.classList.remove('active');
+                    }
+                });
+            });
+            
+            // Close modals with Escape key
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape') {
+                    document.querySelectorAll('.modal').forEach(modal => {
+                        modal.classList.remove('active');
+                    });
+                }
+            });
+        });
+    </script>
+</body>
+</html>
